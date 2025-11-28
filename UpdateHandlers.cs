@@ -64,12 +64,22 @@ internal sealed class UpdateHandlers
             case ConversationState.WaitingForName:
                 BotState.SaveDraft(chatId, name: msg.Text);
                 BotState.UserStates[chatId] = ConversationState.WaitingForInstitute;
-                await _bot.SendMessage(msg.Chat, "Напиши, пожалуйста, свой институт.");
+
+                var inlineKeyboard = new InlineKeyboardMarkup(new[]
+                {
+                    new []
+                    {
+                        InlineKeyboardButton.WithCallbackData("ИМИТиФ", "inst:ИМИТиФ"),
+                        InlineKeyboardButton.WithCallbackData("ИЭиУ", "inst:ИЭиУ"),
+                        InlineKeyboardButton.WithCallbackData("ИСК", "inst:ИСК"),
+                        // TODO: добавить остальные институты
+                    }
+                });
+
+                await _bot.SendMessage(msg.Chat, "Выбери, пожалуйста, свой институт", replyMarkup: inlineKeyboard);
                 break;
             case ConversationState.WaitingForInstitute:
-                BotState.SaveDraft(chatId, institute: msg.Text);
-                BotState.UserStates[chatId] = ConversationState.WaitingForPhoto;
-                await _bot.SendMessage(msg.Chat, "Отправь, пожалуйста, своё фото одним сообщением.");
+                // ожидание выбора института, текст здесь игнорируем
                 break;
             default:
                 await HandleCommandAsync("/start", "", msg);
@@ -146,10 +156,42 @@ internal sealed class UpdateHandlers
         await _bot.SendMessage(msg.Chat, "Спасибо! Твоя анкета сохранена.");
     }
 
+    public async Task HandleUpdateAsync(Update update)
+    {
+        switch (update)
+        {
+            case { CallbackQuery: { } callbackQuery }: await HandleCallbackQueryAsync(callbackQuery); break;
+            case { PollAnswer: { } pollAnswer }: await HandlePollAnswerAsync(pollAnswer); break;
+            default: Console.WriteLine($"Received unhandled update {update.Type}"); break;
+        };
+    }
+
     private async Task HandleCallbackQueryAsync(CallbackQuery callbackQuery)
     {
-        await _bot.AnswerCallbackQuery(callbackQuery.Id, $"You selected {callbackQuery.Data}");
-        await _bot.SendMessage(callbackQuery.Message!.Chat, $"Received callback from inline button {callbackQuery.Data}");
+        if (callbackQuery.Data is null)
+        {
+            await _bot.AnswerCallbackQuery(callbackQuery.Id);
+            return;
+        }
+
+        if (callbackQuery.Data.StartsWith("inst:"))
+        {
+            var institute = callbackQuery.Data["inst:".Length..];
+            var chatId = callbackQuery.Message!.Chat.Id;
+
+            BotState.SaveDraft(chatId, institute: institute);
+            BotState.UserStates[chatId] = ConversationState.WaitingForPhoto;
+
+            await _bot.AnswerCallbackQuery(callbackQuery.Id, $"Институт: {institute}");
+
+            // обновляем сообщение с кнопками, чтобы убрать клавиатуру
+            await _bot.EditMessageReplyMarkup(callbackQuery.Message.Chat, callbackQuery.Message.MessageId, replyMarkup: null);
+
+            await _bot.SendMessage(callbackQuery.Message.Chat, "Отправь, пожалуйста, своё фото одним сообщением.");
+            return;
+        }
+
+        await _bot.AnswerCallbackQuery(callbackQuery.Id);
     }
 
     private async Task HandlePollAnswerAsync(PollAnswer pollAnswer)

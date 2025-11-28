@@ -23,6 +23,8 @@ await bot.DropPendingUpdates();     // you may comment this line if you find it 
 
 bot.OnError += (ex, source) => handlers.HandleErrorAsync(ex, source, cts.Token);
 bot.OnMessage += handlers.HandleMessageAsync;
+bot.OnUpdate += handlers.HandleUpdateAsync;
+
 
 Console.WriteLine($"@{me.Username} is running... Press Escape to terminate");
 while (Console.ReadKey(true).Key != ConsoleKey.Escape) ;
