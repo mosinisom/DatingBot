@@ -107,12 +107,11 @@ internal sealed class UpdateHandlers
             return;
         }
 
-        var (name, institute, photoFileId) = student.Value;
-        var text = $"Твоя анкета:\nИмя: {name}\nИнститут: {institute}";
+        var text = $"Твоя анкета:\nИмя: {student.Name}\nИнститут: {student.Institute}";
 
-        if (!string.IsNullOrWhiteSpace(photoFileId))
+        if (!string.IsNullOrWhiteSpace(student.PhotoFileId))
         {
-            await _bot.SendPhoto(msg.Chat, photoFileId, caption: text);
+            await _bot.SendPhoto(msg.Chat, student.PhotoFileId, caption: text);
         }
         else
         {
@@ -141,7 +140,7 @@ internal sealed class UpdateHandlers
             return;
         }
 
-        _database.SaveStudent(chatId, draft.Name!, draft.Institute!, draft.PhotoFileId);
+        _database.SaveStudent(draft);
         BotState.Reset(chatId);
 
         await _bot.SendMessage(msg.Chat, "Спасибо! Твоя анкета сохранена.");

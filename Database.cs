@@ -35,21 +35,21 @@ internal sealed class Database
         command.ExecuteNonQuery();
     }
 
-    public void SaveStudent(long chatId, string name, string institute, string? photoFileId)
+    public void SaveStudent(Student student)
     {
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
         using var cmd = new SqliteCommand(@"INSERT INTO students(chat_id, name, institute, photo_file_id)
                                             VALUES ($chat_id, $name, $institute, $photo_file_id);", connection);
-        cmd.Parameters.AddWithValue("$chat_id", chatId);
-        cmd.Parameters.AddWithValue("$name", name);
-        cmd.Parameters.AddWithValue("$institute", institute);
-        cmd.Parameters.AddWithValue("$photo_file_id", (object?)photoFileId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$chat_id", student.ChatId);
+        cmd.Parameters.AddWithValue("$name", student.Name);
+        cmd.Parameters.AddWithValue("$institute", student.Institute);
+        cmd.Parameters.AddWithValue("$photo_file_id", (object?)student.PhotoFileId ?? DBNull.Value);
         cmd.ExecuteNonQuery();
     }
 
-    public (string Name, string Institute, string? PhotoFileId)? GetStudentByChatId(long chatId)
+    public Student? GetStudentByChatId(long chatId)
     {
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
@@ -65,9 +65,14 @@ internal sealed class Database
         if (!reader.Read())
             return null;
 
-        var name = reader.GetString(0);
-        var institute = reader.GetString(1);
-        var photo = reader.IsDBNull(2) ? null : reader.GetString(2);
-        return (name, institute, photo);
+        var student = new Student
+        {
+            ChatId = chatId,
+            Name = reader.GetString(0),
+            Institute = reader.GetString(1),
+            PhotoFileId = reader.IsDBNull(2) ? null : reader.GetString(2)
+        };
+
+        return student;
     }
 }
