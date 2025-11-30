@@ -69,10 +69,30 @@ internal sealed class UpdateHandlers
                 {
                     new []
                     {
+                        InlineKeyboardButton.WithCallbackData("ИГЗ", "inst:ИГЗ"),
+                        InlineKeyboardButton.WithCallbackData("ИДПО", "inst:ИДПО"),
+                        InlineKeyboardButton.WithCallbackData("ИИиД", "inst:ИИиД"),
+                        InlineKeyboardButton.WithCallbackData("ИИиС", "inst:ИИиС"),
+
+                    },
+                    new[]
+                    {
                         InlineKeyboardButton.WithCallbackData("ИМИТиФ", "inst:ИМИТиФ"),
-                        InlineKeyboardButton.WithCallbackData("ИЭиУ", "inst:ИЭиУ"),
+                        InlineKeyboardButton.WithCallbackData("ИНиГ", "inst:ИНиГ"),
+                        InlineKeyboardButton.WithCallbackData("ИППиСТ", "inst:ИППиСТ"),
+                        InlineKeyboardButton.WithCallbackData("ИПСУиБ", "inst:ИПСУиБ"),                        
+                    },
+                    new[]
+                    {
                         InlineKeyboardButton.WithCallbackData("ИСК", "inst:ИСК"),
-                        // TODO: добавить остальные институты
+                        InlineKeyboardButton.WithCallbackData("ИУФФиЖ", "inst:ИУФФиЖ"),
+                        InlineKeyboardButton.WithCallbackData("ИФКиС", "inst:ИФКиС"),
+                        InlineKeyboardButton.WithCallbackData("ИЭиУ", "inst:ИЭиУ"),                       
+                    },
+                    new []
+                    {
+                        InlineKeyboardButton.WithCallbackData("ИЯиЛ", "inst:ИЯил"),
+                        InlineKeyboardButton.WithCallbackData("МКПО", "inst:МКПО"),                        
                     }
                 });
 
@@ -109,6 +129,11 @@ internal sealed class UpdateHandlers
             case "/me":
                 await HandleMeCommandAsync(msg);
                 break;
+            case "/yo":
+                await _bot.SendMessage(msg.Chat, "Twenty One");
+                await _bot.SendMessage(msg.Chat, "Twenty One");
+                break;
+            
         }
     }
 
