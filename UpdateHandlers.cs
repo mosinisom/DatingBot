@@ -70,7 +70,7 @@ internal sealed class UpdateHandlers
                     new []
                     {
                         InlineKeyboardButton.WithCallbackData("ИГЗ", "inst:ИГЗ"),
-                        InlineKeyboardButton.WithCallbackData("ИДПО", "inst:ИДПО"),
+                        InlineKeyboardButton.WithCallbackData("ИЕН", "inst:ИЕН"),
                         InlineKeyboardButton.WithCallbackData("ИИиД", "inst:ИИиД"),
                         InlineKeyboardButton.WithCallbackData("ИИиС", "inst:ИИиС"),
 
@@ -79,8 +79,8 @@ internal sealed class UpdateHandlers
                     {
                         InlineKeyboardButton.WithCallbackData("ИМИТиФ", "inst:ИМИТиФ"),
                         InlineKeyboardButton.WithCallbackData("ИНиГ", "inst:ИНиГ"),
-                        InlineKeyboardButton.WithCallbackData("ИППиСТ", "inst:ИППиСТ"),
-                        InlineKeyboardButton.WithCallbackData("ИПСУиБ", "inst:ИПСУиБ"),                        
+                        InlineKeyboardButton.WithCallbackData("ИППСТ", "inst:ИППСТ"),
+                        InlineKeyboardButton.WithCallbackData("ИПСУБ", "inst:ИПСУБ"),                        
                     },
                     new[]
                     {
@@ -91,7 +91,7 @@ internal sealed class UpdateHandlers
                     },
                     new []
                     {
-                        InlineKeyboardButton.WithCallbackData("ИЯиЛ", "inst:ИЯил"),
+                        InlineKeyboardButton.WithCallbackData("ИЯЛ", "inst:ИЯЛ"),
                         InlineKeyboardButton.WithCallbackData("МКПО", "inst:МКПО"),                        
                     }
                 });
