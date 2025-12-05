@@ -73,6 +73,35 @@ internal sealed class Database
         cmd.ExecuteNonQuery();
     }
 
+    public Student? GetRandomStudent(long excludeChatId)
+{
+    using var connection = new SqliteConnection(_connectionString);
+    connection.Open();
+
+    using var cmd = new SqliteCommand(@"
+        SELECT chat_id, name, institute, photo_file_id, description
+        FROM students
+        WHERE chat_id != $excludeChatId
+        ORDER BY RANDOM()
+        LIMIT 1;", connection);
+    
+    cmd.Parameters.AddWithValue("$excludeChatId", excludeChatId); // исключаем себя
+
+    using var reader = cmd.ExecuteReader(CommandBehavior.SingleRow);
+    if (!reader.Read())
+        return null; // если нет других анкет кроме исключенной
+
+    var student = new Student // это нейронка так решила проблему, что GetRandomStudent не всегда возвращает значения
+    {
+        ChatId = reader.GetInt64(0),
+        Name = reader.GetString(1),
+        Institute = reader.GetString(2),
+        PhotoFileId = reader.IsDBNull(3) ? null : reader.GetString(3),
+        Description = reader.IsDBNull(4) ? null : reader.GetString(4)
+    };
+
+    return student; 
+}
     public Student? GetStudentByChatId(long chatId)
     {
         using var connection = new SqliteConnection(_connectionString);
