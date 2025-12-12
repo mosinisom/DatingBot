@@ -134,24 +134,42 @@ internal sealed class UpdateHandlers
                 await _bot.SendMessage(msg.Chat, "Twenty One");
                 break;
             case "/random":
-                var randomStudent = _database.GetRandomStudent(msg.Chat.Id);
-
-                if (randomStudent == null)
-                {
-                    await _bot.SendMessage(msg.Chat.Id, "Пока нет других анкет.");
-                    return;
-                }
-
-                await SendProfileAsync(msg.Chat.Id, randomStudent, "Случайная анкета:");
+                await ShowRandomProfileAsync(msg.Chat.Id);
                 break;
         }
     }
 
-    private async Task SendProfileAsync(long chatId, Student student, string? header = null)
+    private InlineKeyboardMarkup BuildProfileKeyboard(Student student)
     {
-        var text = $"Имя: {student.Name}\n" +
-                   $"Институт: {student.Institute}\n" +
-                   $"Описание: {student.Description ?? "Не указано"}";
+        return new InlineKeyboardMarkup(new[]
+        {
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData("👍", $"p:like:{student.ChatId}"),
+                InlineKeyboardButton.WithCallbackData("🚩", $"p:report:{student.ChatId}"),
+                InlineKeyboardButton.WithCallbackData("➡️", "p:next"),
+            }
+        });
+    }
+
+    private async Task ShowRandomProfileAsync(long chatId)
+    {
+        var randomStudent = _database.GetRandomStudent(chatId);
+
+        if (randomStudent == null)
+        {
+            await _bot.SendMessage(chatId, "Пока нет других анкет.");
+            return;
+        }
+
+        await SendProfileAsync(chatId, randomStudent, BuildProfileKeyboard(randomStudent), header: "Случайная анкета:");
+    }
+
+    private async Task SendProfileAsync(long chatId, Student student, InlineKeyboardMarkup? keyboard, string? header = null)
+    {
+        var text = $"{student.Name}\n" +
+                   $"{student.Institute}\n" +
+                   $"{student.Description ?? " "}";
 
         if (!string.IsNullOrEmpty(header))
         {
@@ -160,11 +178,11 @@ internal sealed class UpdateHandlers
 
         if (!string.IsNullOrEmpty(student.PhotoFileId))
         {
-            await _bot.SendPhoto(chatId, InputFile.FromFileId(student.PhotoFileId), caption: text);
+            await _bot.SendPhoto(chatId, InputFile.FromFileId(student.PhotoFileId), caption: text, replyMarkup: keyboard);
         }
         else
         {
-            await _bot.SendMessage(chatId, text);
+            await _bot.SendMessage(chatId, text, replyMarkup: keyboard);
         }
     }
 
@@ -178,7 +196,7 @@ internal sealed class UpdateHandlers
             return;
         }
 
-        await SendProfileAsync(chatId, student, "Твоя анкета:");
+        await SendProfileAsync(chatId, student, keyboard: null, header: "Твоя анкета:");
     }
 
     private async Task HandlePhotoMessageAsync(Message msg)
@@ -224,6 +242,30 @@ internal sealed class UpdateHandlers
         if (callbackQuery.Data is null)
         {
             await _bot.AnswerCallbackQuery(callbackQuery.Id);
+            return;
+        }
+
+        if (callbackQuery.Data == "p:next")
+        {
+            await _bot.AnswerCallbackQuery(callbackQuery.Id);
+            var chatId = callbackQuery.Message!.Chat.Id;
+            await ShowRandomProfileAsync(chatId);
+            return;
+        }
+
+        if (callbackQuery.Data.StartsWith("p:like:", StringComparison.Ordinal))
+        {
+            await _bot.AnswerCallbackQuery(callbackQuery.Id, "👍");
+            await _bot.SendMessage(callbackQuery.Message!.Chat.Id, "Лайк поставлен (заглушка).",
+                replyMarkup: new ReplyKeyboardRemove());
+            return;
+        }
+
+        if (callbackQuery.Data.StartsWith("p:report:", StringComparison.Ordinal))
+        {
+            await _bot.AnswerCallbackQuery(callbackQuery.Id, "🚩");
+            await _bot.SendMessage(callbackQuery.Message!.Chat.Id, "Жалоба отправлена (заглушка).",
+                replyMarkup: new ReplyKeyboardRemove());
             return;
         }
 
