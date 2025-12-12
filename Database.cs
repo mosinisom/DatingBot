@@ -52,6 +52,23 @@ internal sealed class Database
                 connection);
             alterCmd.ExecuteNonQuery();
         }
+
+        if (!existingColumns.Contains("username"))
+        {
+            using var alterCmd = new SqliteCommand(
+                "ALTER TABLE students ADD COLUMN username TEXT;",
+                connection);
+            alterCmd.ExecuteNonQuery();
+        }
+
+        var likesTableCmd = @"CREATE TABLE IF NOT EXISTS likes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            liker_chat_id INTEGER NOT NULL,
+            liked_chat_id INTEGER NOT NULL,
+            liked_at TEXT NOT NULL
+        );";
+        using var createLikesCmd = new SqliteCommand(likesTableCmd, connection);
+        createLikesCmd.ExecuteNonQuery();
     }
 
     public void SaveStudent(Student student)
@@ -63,51 +80,53 @@ internal sealed class Database
         deleteCmd.Parameters.AddWithValue("$chat_id", student.ChatId);
         deleteCmd.ExecuteNonQuery();
 
-        using var cmd = new SqliteCommand(@"INSERT INTO students(chat_id, name, institute, photo_file_id, description)
-                                            VALUES ($chat_id, $name, $institute, $photo_file_id, $description);", connection);
+        using var cmd = new SqliteCommand(@"INSERT INTO students(chat_id, name, institute, photo_file_id, description, username)
+                                            VALUES ($chat_id, $name, $institute, $photo_file_id, $description, $username);", connection);
         cmd.Parameters.AddWithValue("$chat_id", student.ChatId);
         cmd.Parameters.AddWithValue("$name", student.Name);
         cmd.Parameters.AddWithValue("$institute", student.Institute);
         cmd.Parameters.AddWithValue("$photo_file_id", (object?)student.PhotoFileId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$description", (object?)student.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$username", (object?)student.Username ?? DBNull.Value);
         cmd.ExecuteNonQuery();
     }
 
     public Student? GetRandomStudent(long excludeChatId)
-{
-    using var connection = new SqliteConnection(_connectionString);
-    connection.Open();
-
-    using var cmd = new SqliteCommand(@"
-        SELECT chat_id, name, institute, photo_file_id, description
-        FROM students
-        WHERE chat_id != $excludeChatId
-        ORDER BY RANDOM()
-        LIMIT 1;", connection);
-    
-    cmd.Parameters.AddWithValue("$excludeChatId", excludeChatId); // исключаем себя
-
-    using var reader = cmd.ExecuteReader(CommandBehavior.SingleRow);
-    if (!reader.Read())
-        return null; // если нет других анкет кроме исключенной
-
-    var student = new Student // это нейронка так решила проблему, что GetRandomStudent не всегда возвращает значения
     {
-        ChatId = reader.GetInt64(0),
-        Name = reader.GetString(1),
-        Institute = reader.GetString(2),
-        PhotoFileId = reader.IsDBNull(3) ? null : reader.GetString(3),
-        Description = reader.IsDBNull(4) ? null : reader.GetString(4)
-    };
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
 
-    return student; 
-}
+        using var cmd = new SqliteCommand(@"
+            SELECT chat_id, name, institute, photo_file_id, description, username
+            FROM students
+            WHERE chat_id != $excludeChatId
+            ORDER BY RANDOM()
+            LIMIT 1;", connection);
+        
+        cmd.Parameters.AddWithValue("$excludeChatId", excludeChatId); // исключаем себя
+
+        using var reader = cmd.ExecuteReader(CommandBehavior.SingleRow);
+        if (!reader.Read())
+            return null; // если нет других анкет кроме исключенной
+
+        var student = new Student
+        {
+            ChatId = reader.GetInt64(0),
+            Name = reader.GetString(1),
+            Institute = reader.GetString(2),
+            PhotoFileId = reader.IsDBNull(3) ? null : reader.GetString(3),
+            Description = reader.IsDBNull(4) ? null : reader.GetString(4),
+            Username = reader.IsDBNull(5) ? null : reader.GetString(5)
+        };
+
+        return student; 
+    }
     public Student? GetStudentByChatId(long chatId)
     {
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
-        using var cmd = new SqliteCommand(@"SELECT name, institute, photo_file_id, description
+        using var cmd = new SqliteCommand(@"SELECT name, institute, photo_file_id, description, username
                                            FROM students
                                            WHERE chat_id = $chat_id
                                            ORDER BY id DESC
@@ -124,9 +143,87 @@ internal sealed class Database
             Name = reader.GetString(0),
             Institute = reader.GetString(1),
             PhotoFileId = reader.IsDBNull(2) ? null : reader.GetString(2),
-            Description = reader.IsDBNull(3) ? null : reader.GetString(3)
+            Description = reader.IsDBNull(3) ? null : reader.GetString(3),
+            Username = reader.IsDBNull(4) ? null : reader.GetString(4)
         };
 
         return student;
+    }
+
+    /// <summary>
+    /// Проверяет, можно ли лайкнуть пользователя (не чаще раза в сутки)
+    /// </summary>
+    public bool CanLike(long likerChatId, long likedChatId)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        var oneDayAgo = DateTime.UtcNow.AddDays(-1).ToString("o");
+        using var cmd = new SqliteCommand(@"
+            SELECT COUNT(*)
+            FROM likes
+            WHERE liker_chat_id = $liker_chat_id
+              AND liked_chat_id = $liked_chat_id
+              AND liked_at > $one_day_ago;", connection);
+        cmd.Parameters.AddWithValue("$liker_chat_id", likerChatId);
+        cmd.Parameters.AddWithValue("$liked_chat_id", likedChatId);
+        cmd.Parameters.AddWithValue("$one_day_ago", oneDayAgo);
+
+        var count = Convert.ToInt64(cmd.ExecuteScalar());
+        return count == 0;
+    }
+
+    /// <summary>
+    /// Сохраняет лайк в базу данных
+    /// </summary>
+    public void SaveLike(long likerChatId, long likedChatId)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var cmd = new SqliteCommand(@"
+            INSERT INTO likes(liker_chat_id, liked_chat_id, liked_at)
+            VALUES ($liker_chat_id, $liked_chat_id, $liked_at);", connection);
+        cmd.Parameters.AddWithValue("$liker_chat_id", likerChatId);
+        cmd.Parameters.AddWithValue("$liked_chat_id", likedChatId);
+        cmd.Parameters.AddWithValue("$liked_at", DateTime.UtcNow.ToString("o"));
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Проверяет, есть ли взаимный лайк (матч)
+    /// </summary>
+    public bool HasMutualLike(long user1ChatId, long user2ChatId)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var cmd = new SqliteCommand(@"
+            SELECT COUNT(*)
+            FROM likes
+            WHERE liker_chat_id = $user2
+              AND liked_chat_id = $user1;", connection);
+        cmd.Parameters.AddWithValue("$user1", user1ChatId);
+        cmd.Parameters.AddWithValue("$user2", user2ChatId);
+
+        var count = Convert.ToInt64(cmd.ExecuteScalar());
+        return count > 0;
+    }
+
+    /// <summary>
+    /// Получает количество лайков, которые получил пользователь
+    /// </summary>
+    public int GetLikesCount(long chatId)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var cmd = new SqliteCommand(@"
+            SELECT COUNT(*)
+            FROM likes
+            WHERE liked_chat_id = $chat_id;", connection);
+        cmd.Parameters.AddWithValue("$chat_id", chatId);
+
+        return Convert.ToInt32(cmd.ExecuteScalar());
     }
 }

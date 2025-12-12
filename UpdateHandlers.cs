@@ -145,7 +145,7 @@ internal sealed class UpdateHandlers
         {
             new[]
             {
-                InlineKeyboardButton.WithCallbackData("👍", $"p:like:{student.ChatId}"),
+                InlineKeyboardButton.WithCallbackData("🩵", $"p:like:{student.ChatId}"),
                 InlineKeyboardButton.WithCallbackData("🚩", $"p:report:{student.ChatId}"),
                 InlineKeyboardButton.WithCallbackData("➡️", "p:next"),
             }
@@ -167,9 +167,17 @@ internal sealed class UpdateHandlers
 
     private async Task SendProfileAsync(long chatId, Student student, InlineKeyboardMarkup? keyboard, string? header = null)
     {
+        var likesCount = _database.GetLikesCount(student.ChatId);
+        var likesText = likesCount > 0 ? $"❤️ {likesCount}" : "";
+
         var text = $"{student.Name}\n" +
                    $"{student.Institute}\n" +
                    $"{student.Description ?? " "}";
+
+        if (!string.IsNullOrEmpty(likesText))
+        {
+            text += $"\n\n{likesText}";
+        }
 
         if (!string.IsNullOrEmpty(header))
         {
@@ -220,6 +228,8 @@ internal sealed class UpdateHandlers
             return;
         }
 
+        draft.Username = msg.From?.Username;
+
         _database.SaveStudent(draft);
         BotState.Reset(chatId);
 
@@ -255,17 +265,43 @@ internal sealed class UpdateHandlers
 
         if (callbackQuery.Data.StartsWith("p:like:", StringComparison.Ordinal))
         {
-            await _bot.AnswerCallbackQuery(callbackQuery.Id, "👍");
-            await _bot.SendMessage(callbackQuery.Message!.Chat.Id, "Лайк поставлен (заглушка).",
-                replyMarkup: new ReplyKeyboardRemove());
+            var chatId = callbackQuery.Message!.Chat.Id;
+            var likedChatIdStr = callbackQuery.Data["p:like:".Length..];
+            if (!long.TryParse(likedChatIdStr, out var likedChatId))
+            {
+                await _bot.AnswerCallbackQuery(callbackQuery.Id, "Ошибка при обработке лайка.");
+                return;
+            }
+
+            await HandleLikeAsync(callbackQuery, chatId, likedChatId);
+            return;
+        }
+
+        if (callbackQuery.Data.StartsWith("p:likeBack:", StringComparison.Ordinal))
+        {
+            var chatId = callbackQuery.Message!.Chat.Id;
+            var likedChatIdStr = callbackQuery.Data["p:likeBack:".Length..];
+            if (!long.TryParse(likedChatIdStr, out var likedChatId))
+            {
+                await _bot.AnswerCallbackQuery(callbackQuery.Id, "Ошибка при обработке лайка.");
+                return;
+            }
+
+            await HandleLikeBackAsync(callbackQuery, chatId, likedChatId);
+            return;
+        }
+
+        if (callbackQuery.Data.StartsWith("p:skip:", StringComparison.Ordinal))
+        {
+            await _bot.AnswerCallbackQuery(callbackQuery.Id, "Анкета пропущена.");
             return;
         }
 
         if (callbackQuery.Data.StartsWith("p:report:", StringComparison.Ordinal))
         {
-            await _bot.AnswerCallbackQuery(callbackQuery.Id, "🚩");
-            await _bot.SendMessage(callbackQuery.Message!.Chat.Id, "Жалоба отправлена (заглушка).",
-                replyMarkup: new ReplyKeyboardRemove());
+            await _bot.AnswerCallbackQuery(callbackQuery.Id, "Жалоба отправлена (заглушка).");
+            var chatId = callbackQuery.Message!.Chat.Id;
+            await ShowRandomProfileAsync(chatId);
             return;
         }
 
@@ -293,5 +329,82 @@ internal sealed class UpdateHandlers
     {
         if (pollAnswer.User != null)
             await _bot.SendMessage(pollAnswer.User.Id, $"You voted for option(s) id [{string.Join(',', pollAnswer.OptionIds)}]");
+    }
+
+    private async Task HandleLikeAsync(CallbackQuery callbackQuery, long likerChatId, long likedChatId)
+    {
+        if (!_database.CanLike(likerChatId, likedChatId))
+        {
+            await _bot.AnswerCallbackQuery(callbackQuery.Id, "Ты уже лайкал(а) эту анкету сегодня. Попробуй завтра!");
+            await ShowRandomProfileAsync(likerChatId);
+            return;
+        }
+
+        _database.SaveLike(likerChatId, likedChatId);
+
+        if (_database.HasMutualLike(likerChatId, likedChatId))
+        {
+            await HandleMatchAsync(likerChatId, likedChatId);
+            await _bot.AnswerCallbackQuery(callbackQuery.Id, "🎉 Это матч!");
+        }
+        else
+        {
+            await SendLikeNotificationAsync(likerChatId, likedChatId);
+            await _bot.AnswerCallbackQuery(callbackQuery.Id, "❤️ Лайк отправлен!");
+        }
+
+        await ShowRandomProfileAsync(likerChatId);
+    }
+
+    private async Task HandleLikeBackAsync(CallbackQuery callbackQuery, long likerChatId, long likedChatId)
+    {
+        if (!_database.CanLike(likerChatId, likedChatId))
+        {
+            await _bot.AnswerCallbackQuery(callbackQuery.Id, "Ты уже лайкал(а) эту анкету сегодня!");
+            return;
+        }
+
+        _database.SaveLike(likerChatId, likedChatId);
+
+        await HandleMatchAsync(likerChatId, likedChatId);
+        await _bot.AnswerCallbackQuery(callbackQuery.Id, "🎉 Это матч!");
+    }
+
+    private async Task SendLikeNotificationAsync(long likerChatId, long likedChatId)
+    {
+        var likerStudent = _database.GetStudentByChatId(likerChatId);
+        if (likerStudent == null)
+            return;
+
+        var keyboard = new InlineKeyboardMarkup(new[]
+        {
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData("💙 Лайкнуть в ответ", $"p:likeBack:{likerChatId}"),
+                InlineKeyboardButton.WithCallbackData("❌ Пропустить", $"p:skip:{likerChatId}"),
+            }
+        });
+
+        await SendProfileAsync(likedChatId, likerStudent, keyboard, header: "💌 Тебя лайкнули!");
+    }
+
+    private async Task HandleMatchAsync(long user1ChatId, long user2ChatId)
+    {
+        var student1 = _database.GetStudentByChatId(user1ChatId);
+        var student2 = _database.GetStudentByChatId(user2ChatId);
+
+        if (student1 == null || student2 == null)
+            return;
+
+        var username1 = !string.IsNullOrEmpty(student1.Username) ? $"@{student1.Username}" : "не указан";
+        var username2 = !string.IsNullOrEmpty(student2.Username) ? $"@{student2.Username}" : "не указан";
+
+        var matchMessage1 = $"🎉 У вас взаимная симпатия с {student2.Name}!\n\n" +
+                           $"💬 Напиши ему/ей: {username2}";
+        await _bot.SendMessage(user1ChatId, matchMessage1);
+
+        var matchMessage2 = $"🎉 У вас взаимная симпатия с {student1.Name}!\n\n" +
+                           $"💬 Напиши ему/ей: {username1}";
+        await _bot.SendMessage(user2ChatId, matchMessage2);
     }
 }
