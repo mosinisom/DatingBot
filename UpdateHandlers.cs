@@ -80,19 +80,19 @@ internal sealed class UpdateHandlers
                         InlineKeyboardButton.WithCallbackData("ИМИТиФ", "inst:ИМИТиФ"),
                         InlineKeyboardButton.WithCallbackData("ИНиГ", "inst:ИНиГ"),
                         InlineKeyboardButton.WithCallbackData("ИППСТ", "inst:ИППСТ"),
-                        InlineKeyboardButton.WithCallbackData("ИПСУБ", "inst:ИПСУБ"),                        
+                        InlineKeyboardButton.WithCallbackData("ИПСУБ", "inst:ИПСУБ"),
                     },
                     new[]
                     {
                         InlineKeyboardButton.WithCallbackData("ИСК", "inst:ИСК"),
                         InlineKeyboardButton.WithCallbackData("ИУФФиЖ", "inst:ИУФФиЖ"),
                         InlineKeyboardButton.WithCallbackData("ИФКиС", "inst:ИФКиС"),
-                        InlineKeyboardButton.WithCallbackData("ИЭиУ", "inst:ИЭиУ"),                       
+                        InlineKeyboardButton.WithCallbackData("ИЭиУ", "inst:ИЭиУ"),
                     },
                     new []
                     {
                         InlineKeyboardButton.WithCallbackData("ИЯЛ", "inst:ИЯЛ"),
-                        InlineKeyboardButton.WithCallbackData("МКПО", "inst:МКПО"),                        
+                        InlineKeyboardButton.WithCallbackData("МКПО", "inst:МКПО"),
                     }
                 });
 
@@ -133,39 +133,40 @@ internal sealed class UpdateHandlers
                 await _bot.SendMessage(msg.Chat, "Twenty One");
                 await _bot.SendMessage(msg.Chat, "Twenty One");
                 break;
-            case "/random": 
-                await _bot.SendMessage(msg.Chat, "Случайная анкета:");
+            case "/random":
                 var randomStudent = _database.GetRandomStudent(msg.Chat.Id);
-    
+
                 if (randomStudent == null)
                 {
-                    await _bot.SendMessage(
-                        chatId: msg.Chat.Id,
-                        text: "Пока нет других анкет.");
+                    await _bot.SendMessage(msg.Chat.Id, "Пока нет других анкет.");
                     return;
                 }
 
-                string text = $"Имя: {randomStudent.Name}\n" +
-                            $"Институт: {randomStudent.Institute}\n" +
-                            $"Описание: {randomStudent.Description ?? "Не указано"}";
+                await SendProfileAsync(msg.Chat.Id, randomStudent, "Случайная анкета:");
+                break;
+        }
+    }
 
-                // проверка на наличие фотографии (тоже от нейронки)
-                if (!string.IsNullOrEmpty(randomStudent.PhotoFileId))
-                {
-                    await _bot.SendPhoto(
-                        chatId: msg.Chat.Id,
-                        photo: InputFile.FromFileId(randomStudent.PhotoFileId),
-                        caption: text);
-                }
-                else
-                {
-                    await _bot.SendMessage(
-                        chatId: msg.Chat.Id,
-                        text: text);
-                }
-                            break;
-                    }
-                }
+    private async Task SendProfileAsync(long chatId, Student student, string? header = null)
+    {
+        var text = $"Имя: {student.Name}\n" +
+                   $"Институт: {student.Institute}\n" +
+                   $"Описание: {student.Description ?? "Не указано"}";
+
+        if (!string.IsNullOrEmpty(header))
+        {
+            text = $"{header}\n{text}";
+        }
+
+        if (!string.IsNullOrEmpty(student.PhotoFileId))
+        {
+            await _bot.SendPhoto(chatId, InputFile.FromFileId(student.PhotoFileId), caption: text);
+        }
+        else
+        {
+            await _bot.SendMessage(chatId, text);
+        }
+    }
 
     private async Task HandleMeCommandAsync(Message msg)
     {
@@ -177,20 +178,7 @@ internal sealed class UpdateHandlers
             return;
         }
 
-        var text = $"Твоя анкета:\nИмя: {student.Name}\nИнститут: {student.Institute}";
-        if (!string.IsNullOrWhiteSpace(student.Description))
-        {
-            text += $"\nОписание: {student.Description}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(student.PhotoFileId))
-        {
-            await _bot.SendPhoto(msg.Chat, student.PhotoFileId, caption: text);
-        }
-        else
-        {
-            await _bot.SendMessage(msg.Chat, text);
-        }
+        await SendProfileAsync(chatId, student, "Твоя анкета:");
     }
 
     private async Task HandlePhotoMessageAsync(Message msg)
@@ -227,7 +215,8 @@ internal sealed class UpdateHandlers
             case { CallbackQuery: { } callbackQuery }: await HandleCallbackQueryAsync(callbackQuery); break;
             case { PollAnswer: { } pollAnswer }: await HandlePollAnswerAsync(pollAnswer); break;
             default: Console.WriteLine($"Received unhandled update {update.Type}"); break;
-        };
+        }
+        ;
     }
 
     private async Task HandleCallbackQueryAsync(CallbackQuery callbackQuery)
