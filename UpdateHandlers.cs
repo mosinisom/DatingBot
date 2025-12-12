@@ -133,9 +133,39 @@ internal sealed class UpdateHandlers
                 await _bot.SendMessage(msg.Chat, "Twenty One");
                 await _bot.SendMessage(msg.Chat, "Twenty One");
                 break;
-            
-        }
-    }
+            case "/random": 
+                await _bot.SendMessage(msg.Chat, "Случайная анкета:");
+                var randomStudent = _database.GetRandomStudent(msg.Chat.Id);
+    
+                if (randomStudent == null)
+                {
+                    await _bot.SendMessage(
+                        chatId: msg.Chat.Id,
+                        text: "Пока нет других анкет.");
+                    return;
+                }
+
+                string text = $"Имя: {randomStudent.Name}\n" +
+                            $"Институт: {randomStudent.Institute}\n" +
+                            $"Описание: {randomStudent.Description ?? "Не указано"}";
+
+                // проверка на наличие фотографии (тоже от нейронки)
+                if (!string.IsNullOrEmpty(randomStudent.PhotoFileId))
+                {
+                    await _bot.SendPhoto(
+                        chatId: msg.Chat.Id,
+                        photo: InputFile.FromFileId(randomStudent.PhotoFileId),
+                        caption: text);
+                }
+                else
+                {
+                    await _bot.SendMessage(
+                        chatId: msg.Chat.Id,
+                        text: text);
+                }
+                            break;
+                    }
+                }
 
     private async Task HandleMeCommandAsync(Message msg)
     {
