@@ -258,4 +258,19 @@ internal sealed class Database
         cmd.Parameters.AddWithValue("$reported_at", DateTime.UtcNow.ToString("o"));
         cmd.ExecuteNonQuery();
     }
+
+    /// <summary>
+    /// Удаляет все жалобы, отправленные пользователем
+    /// </summary>
+    public void DeleteAllReports(long reporterChatId)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var cmd = new SqliteCommand(@"
+            DELETE FROM reports
+            WHERE reporter_chat_id = $reporter_chat_id;", connection);
+        cmd.Parameters.AddWithValue("$reporter_chat_id", reporterChatId);
+        cmd.ExecuteNonQuery();
+    }
 }

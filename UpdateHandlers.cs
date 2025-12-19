@@ -136,6 +136,10 @@ internal sealed class UpdateHandlers
             case "/random":
                 await ShowRandomProfileAsync(msg.Chat.Id);
                 break;
+            case "/unblockall":
+                _database.DeleteAllReports(msg.Chat.Id);
+                await _bot.SendMessage(msg.Chat, "Все пользователи удалены из чёрного списка.");
+                break;
         }
     }
 
