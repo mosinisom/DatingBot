@@ -69,6 +69,15 @@ internal sealed class Database
         );";
         using var createLikesCmd = new SqliteCommand(likesTableCmd, connection);
         createLikesCmd.ExecuteNonQuery();
+
+        var reportsTableCmd = @"CREATE TABLE IF NOT EXISTS reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reporter_chat_id INTEGER NOT NULL,
+            reported_chat_id INTEGER NOT NULL,
+            reported_at TEXT NOT NULL
+        );";
+        using var createReportsCmd = new SqliteCommand(reportsTableCmd, connection);
+        createReportsCmd.ExecuteNonQuery();
     }
 
     public void SaveStudent(Student student)
@@ -100,10 +109,16 @@ internal sealed class Database
             SELECT chat_id, name, institute, photo_file_id, description, username
             FROM students
             WHERE chat_id != $excludeChatId
+              AND chat_id NOT IN (
+                  SELECT reported_chat_id FROM reports WHERE reporter_chat_id = $excludeChatId
+              )
+              AND chat_id NOT IN (
+                  SELECT reporter_chat_id FROM reports WHERE reported_chat_id = $excludeChatId
+              )
             ORDER BY RANDOM()
             LIMIT 1;", connection);
         
-        cmd.Parameters.AddWithValue("$excludeChatId", excludeChatId); // исключаем себя
+        cmd.Parameters.AddWithValue("$excludeChatId", excludeChatId); // исключаем себя и заблокированных
 
         using var reader = cmd.ExecuteReader(CommandBehavior.SingleRow);
         if (!reader.Read())
@@ -225,5 +240,22 @@ internal sealed class Database
         cmd.Parameters.AddWithValue("$chat_id", chatId);
 
         return Convert.ToInt32(cmd.ExecuteScalar());
+    }
+
+    /// <summary>
+    /// Сохраняет жалобу (добавляет в черный список)
+    /// </summary>
+    public void SaveReport(long reporterChatId, long reportedChatId)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var cmd = new SqliteCommand(@"
+            INSERT INTO reports(reporter_chat_id, reported_chat_id, reported_at)
+            VALUES ($reporter_chat_id, $reported_chat_id, $reported_at);", connection);
+        cmd.Parameters.AddWithValue("$reporter_chat_id", reporterChatId);
+        cmd.Parameters.AddWithValue("$reported_chat_id", reportedChatId);
+        cmd.Parameters.AddWithValue("$reported_at", DateTime.UtcNow.ToString("o"));
+        cmd.ExecuteNonQuery();
     }
 }

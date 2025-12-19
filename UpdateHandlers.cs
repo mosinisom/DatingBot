@@ -299,8 +299,16 @@ internal sealed class UpdateHandlers
 
         if (callbackQuery.Data.StartsWith("p:report:", StringComparison.Ordinal))
         {
-            await _bot.AnswerCallbackQuery(callbackQuery.Id, "Жалоба отправлена (заглушка).");
             var chatId = callbackQuery.Message!.Chat.Id;
+            var reportedChatIdStr = callbackQuery.Data["p:report:".Length..];
+            if (!long.TryParse(reportedChatIdStr, out var reportedChatId))
+            {
+                await _bot.AnswerCallbackQuery(callbackQuery.Id, "Ошибка при обработке жалобы.");
+                return;
+            }
+
+            _database.SaveReport(chatId, reportedChatId);
+            await _bot.AnswerCallbackQuery(callbackQuery.Id, "Жалоба отправлена, эта анкета больше не будет тебе показываться.");
             await ShowRandomProfileAsync(chatId);
             return;
         }
