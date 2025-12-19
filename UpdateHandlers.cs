@@ -399,11 +399,11 @@ internal sealed class UpdateHandlers
         var username1 = !string.IsNullOrEmpty(student1.Username) ? $"@{student1.Username}" : "не указан";
         var username2 = !string.IsNullOrEmpty(student2.Username) ? $"@{student2.Username}" : "не указан";
 
-        var matchMessage1 = $"🎉 У вас взаимная симпатия с {student2.Name}!\n\n" +
+        var matchMessage1 = $"🎉 У вас взаимный лайк с {student2.Name}!\n\n" +
                            $"💬 Напиши ему/ей: {username2}";
         await _bot.SendMessage(user1ChatId, matchMessage1);
 
-        var matchMessage2 = $"🎉 У вас взаимная симпатия с {student1.Name}!\n\n" +
+        var matchMessage2 = $"🎉 У вас взаимный лайк с {student1.Name}!\n\n" +
                            $"💬 Напиши ему/ей: {username1}";
         await _bot.SendMessage(user2ChatId, matchMessage2);
     }
